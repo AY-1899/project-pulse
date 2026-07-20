@@ -193,11 +193,72 @@
   .generate-btn:hover:not(:disabled) { background: var(--violet-bright); }
   .generate-btn:disabled { background: var(--text-faint); color: var(--text-dim); cursor: not-allowed; }
 
+  .tabs-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
   .tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 2px;
     margin-bottom: 0;
+  }
+
+  .export-bar {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 6px;
+  }
+
+  .export-btn {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--violet-bright);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 7px 12px;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .export-btn:hover:not(:disabled) { border-color: var(--violet); }
+  .export-btn:disabled { color: var(--text-faint); cursor: not-allowed; }
+
+  .checklist-phase h4 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--violet);
+    margin: 22px 0 8px;
+  }
+  .checklist-phase:first-child h4 { margin-top: 0; }
+
+  .checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 0;
     border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+  }
+  .checklist-item input[type="checkbox"] {
+    margin-top: 3px;
+    accent-color: var(--violet);
+    cursor: pointer;
+  }
+  .checklist-item label { cursor: pointer; flex: 1; }
+  .checklist-item.done label { color: var(--text-faint); text-decoration: line-through; }
+  .checklist-item .owner-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    white-space: nowrap;
   }
 
   .tab {
@@ -365,6 +426,89 @@ Update from this week:
 - External partners involved: development agency (build and hosting), design agency (content and creative review)
 - The design agency has been slow on turnaround this month, two deliverables came in late`;
 
+function escapeHtml(str) {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function severityColor(sev) {
+  return sev === 'High' ? '#B3261E' : sev === 'Medium' ? '#8A6D00' : '#3A6B35';
+}
+
+function buildReportHTML(results, timestamp) {
+  const e = escapeHtml;
+
+  const statusHtml = `
+    <h2>Status Report</h2>
+    <p style="font-style:italic;color:#444;">${e(results.status.summary)}</p>
+    ${results.status.sections.map(s => `<h3>${e(s.heading)}</h3><p>${e(s.body)}</p>`).join('')}
+  `;
+
+  const risksHtml = `
+    <h2>Risk Register</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th><th>Owner</th></tr></thead>
+      <tbody>
+        ${results.risks.map(r => `<tr><td><strong>${e(r.risk)}</strong><br><span style="color:#555;">${e(r.description)}</span></td><td style="color:${severityColor(r.severity)};font-weight:600;">${e(r.severity)}</td><td>${e(r.mitigation)}</td><td>${e(r.owner)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+
+  const agenciesHtml = `
+    <h2>Agency / Vendor Tracker</h2>
+    <table>
+      <thead><tr><th>Agency / Vendor</th><th>Scope</th><th>Status</th><th>Flag</th></tr></thead>
+      <tbody>
+        ${results.agencies.map(a => `<tr><td><strong>${e(a.agency)}</strong></td><td>${e(a.scope)}</td><td>${e(a.status)}</td><td>${e(a.flag || '—')}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+
+  const commsHtml = `
+    <h2>Stakeholder Communications Plan</h2>
+    <table>
+      <thead><tr><th>Stakeholder</th><th>Interest</th><th>Key Message</th><th>Channel</th><th>Cadence</th><th>Owner</th></tr></thead>
+      <tbody>
+        ${results.commsPlan.map(c => `<tr><td><strong>${e(c.stakeholder)}</strong></td><td>${e(c.interest)}</td><td>${e(c.keyMessage)}</td><td>${e(c.channel)}</td><td>${e(c.cadence)}</td><td>${e(c.owner)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+
+  const phases = [...new Set(results.changeChecklist.map(i => i.phase))];
+  const checklistHtml = `
+    <h2>Change Management Checklist</h2>
+    ${phases.map(phase => `
+      <h3>${e(phase)}</h3>
+      <ul style="list-style:none;padding-left:0;">
+        ${results.changeChecklist.filter(i => i.phase === phase).map(i => `<li style="margin:6px 0;">&#9744; ${e(i.item)} <span style="color:#666;">(${e(i.owner)})</span></li>`).join('')}
+      </ul>
+    `).join('')}
+  `;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Project Pulse Report</title>
+<style>
+  body { font-family: Georgia, 'Times New Roman', serif; color:#111; max-width:800px; margin:40px auto; padding:0 20px; line-height:1.5; }
+  h1 { font-size:22px; border-bottom:2px solid #333; padding-bottom:8px; }
+  h2 { font-size:17px; margin-top:32px; border-bottom:1px solid #ccc; padding-bottom:4px; }
+  h3 { font-size:14px; margin-top:18px; color:#333; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:8px; }
+  th, td { border:1px solid #ccc; padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#f2f2f2; font-size:11px; text-transform:uppercase; letter-spacing:0.03em; }
+  .meta { font-size:11px; color:#666; margin-bottom:24px; }
+  @media print { body { margin:0; padding:20px; } }
+</style>
+</head>
+<body>
+  <h1>Project Pulse — Status Report</h1>
+  <div class="meta">Generated ${e(timestamp)} &middot; Draft for review, not for direct circulation without sign-off.</div>
+  ${statusHtml}
+  ${risksHtml}
+  ${agenciesHtml}
+  ${commsHtml}
+  ${checklistHtml}
+</body></html>`;
+}
+
 function App() {
   const [notes, setNotes] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -373,8 +517,13 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
+  const [checkedItems, setCheckedItems] = useState({});
 
   const loadSample = () => setNotes(SAMPLE_NOTES);
+
+  const toggleChecked = (idx) => {
+    setCheckedItems(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
 
   const generate = async () => {
     if (!notes.trim()) return;
@@ -387,7 +536,7 @@ function App() {
     setError(null);
     setResults(null);
 
-    const systemPrompt = `You are a project management assistant. You take rough, informal project notes from a project manager and convert them into three structured outputs. You must respond ONLY with a single valid JSON object, no markdown fences, no preamble, matching exactly this shape:
+    const systemPrompt = `You are a project management assistant. You take rough, informal project notes from a project manager and convert them into five structured outputs. You must respond ONLY with a single valid JSON object, no markdown fences, no preamble, matching exactly this shape:
 
 {
   "status": {
@@ -401,10 +550,20 @@ function App() {
   ],
   "agencies": [
     {"agency": "string, agency/vendor/partner name", "scope": "string, what they are responsible for", "status": "string, current delivery status", "flag": "string or empty, any compliance/performance concern"}
+  ],
+  "commsPlan": [
+    {"stakeholder": "string, stakeholder or stakeholder group named or implied in the notes (e.g. 'Regional lead - Market B', 'Finance', 'Legal', 'Development agency')", "interest": "string, 1 sentence on what they care about or why they need an update", "keyMessage": "string, 1 sentence, the specific thing they should be told given current status", "channel": "string, e.g. 'Email', 'Steering committee', 'Slack update', '1:1 call'", "cadence": "string, e.g. 'Weekly', 'Ad hoc', 'At milestone'", "owner": "string, best guess at who sends this update, or 'TBC'"}
+  ],
+  "changeChecklist": [
+    {"phase": "Prepare" | "Communicate" | "Train & Enable" | "Execute" | "Monitor & Sustain", "item": "string, a specific, actionable checklist item for this rollout", "owner": "string, best guess or 'TBC'"}
   ]
 }
 
-Extract only what is grounded in the notes provided. Do not invent details, names, or figures that are not implied by the notes. Use a professional, neutral project management register suitable for a stakeholder-facing status dashboard. Keep language precise and non-alarmist even for high risks.`;
+Extract only what is grounded in the notes provided. Do not invent details, names, or figures that are not implied by the notes. Use a professional, neutral project management register suitable for a stakeholder-facing status dashboard. Keep language precise and non-alarmist even for high risks.
+
+For "commsPlan": base entries on stakeholders, teams, or vendors actually named or clearly implied in the notes (regional leads, finance, legal, external agencies, sponsors, etc.) — do not invent stakeholders that aren't implied. Produce 3-6 entries.
+
+For "changeChecklist": generate a rollout change-management checklist covering the five standard phases (Prepare, Communicate, Train & Enable, Execute, Monitor & Sustain), 2-4 items per phase. Combine standard change-management best practice for a rollout of this kind with anything specific the notes imply (e.g. an outstanding vendor SOW, a compliance template update, a budget sign-off). It is acceptable to include generally-applicable best-practice items even if not explicitly stated in the notes, since this is a planning checklist rather than a status extraction — but do not invent specific names, figures, or claims about this project that aren't implied.`;
 
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -417,7 +576,7 @@ Extract only what is grounded in the notes provided. Do not invent details, name
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-5",
-          max_tokens: 1200,
+          max_tokens: 2400,
           system: systemPrompt,
           messages: [
             { role: "user", content: `Project notes:\n\n${notes}` }
@@ -437,6 +596,7 @@ Extract only what is grounded in the notes provided. Do not invent details, name
       let clean = textBlock.text.trim().replace(/^```json\s*/i, '').replace(/```$/,'').trim();
       const parsed = JSON.parse(clean);
       setResults(parsed);
+      setCheckedItems({});
     } catch (e) {
       console.error(e);
       setError(e.message || "Could not generate the report. Please check your API key and try again.");
@@ -447,6 +607,38 @@ Extract only what is grounded in the notes provided. Do not invent details, name
 
   const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
 
+  const exportPDF = () => {
+    if (!results) return;
+    const html = buildReportHTML(results, timestamp);
+    const win = window.open('', '_blank');
+    if (!win) {
+      setError('Pop-up blocked — allow pop-ups for this page to export a PDF.');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
+  };
+
+  const exportWord = () => {
+    if (!results) return;
+    const html = buildReportHTML(results, timestamp);
+    const wordHtml = html.replace(
+      '<html>',
+      '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+    );
+    const blob = new Blob(['﻿', wordHtml], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `project-pulse-report-${new Date().toISOString().slice(0, 10)}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="shell">
       <header className="top">
@@ -454,7 +646,7 @@ Extract only what is grounded in the notes provided. Do not invent details, name
           <div className="brand-eyebrow">Project Management · Reporting</div>
           <h1>Project Pulse</h1>
         </div>
-        <div className="subtitle">Turns rough project notes into a status report, risk register, and vendor tracker — drafted for review, not for direct submission.</div>
+        <div className="subtitle">Turns rough project notes into a status report, risk register, vendor tracker, stakeholder comms plan, and change-management checklist — exportable as PDF or Word, drafted for review, not for direct submission.</div>
       </header>
 
       <div className="layout">
@@ -488,10 +680,18 @@ Extract only what is grounded in the notes provided. Do not invent details, name
         </div>
 
         <div className="panel">
-          <div className="tabs">
-            <div className={`tab ${activeTab === 'status' ? 'active' : ''}`} onClick={() => setActiveTab('status')}>Status Report</div>
-            <div className={`tab ${activeTab === 'risks' ? 'active' : ''}`} onClick={() => setActiveTab('risks')}>Risk Register</div>
-            <div className={`tab ${activeTab === 'agencies' ? 'active' : ''}`} onClick={() => setActiveTab('agencies')}>Agency Tracker</div>
+          <div className="tabs-row">
+            <div className="tabs">
+              <div className={`tab ${activeTab === 'status' ? 'active' : ''}`} onClick={() => setActiveTab('status')}>Status Report</div>
+              <div className={`tab ${activeTab === 'risks' ? 'active' : ''}`} onClick={() => setActiveTab('risks')}>Risk Register</div>
+              <div className={`tab ${activeTab === 'agencies' ? 'active' : ''}`} onClick={() => setActiveTab('agencies')}>Agency Tracker</div>
+              <div className={`tab ${activeTab === 'comms' ? 'active' : ''}`} onClick={() => setActiveTab('comms')}>Comms Plan</div>
+              <div className={`tab ${activeTab === 'checklist' ? 'active' : ''}`} onClick={() => setActiveTab('checklist')}>Change Checklist</div>
+            </div>
+            <div className="export-bar">
+              <button className="export-btn" onClick={exportPDF} disabled={!results}>Export PDF</button>
+              <button className="export-btn" onClick={exportWord} disabled={!results}>Export Word (.doc)</button>
+            </div>
           </div>
 
           <div className="output-body">
@@ -505,7 +705,7 @@ Extract only what is grounded in the notes provided. Do not invent details, name
             {!loading && !results && (
               <div className="empty-state">
                 <div className="glyph">§</div>
-                <p>Paste your notes and generate a report to see the status summary, risk register, and agency tracker here.</p>
+                <p>Paste your notes and generate a report to see the status summary, risk register, agency tracker, comms plan, and change checklist here.</p>
               </div>
             )}
 
@@ -568,6 +768,61 @@ Extract only what is grounded in the notes provided. Do not invent details, name
                 </table>
                 <div className="doc-stamp">
                   <span>AGENCY TRACKER · DRAFT FOR REVIEW</span>
+                  <span>{timestamp}</span>
+                </div>
+              </div>
+            )}
+
+            {!loading && results && activeTab === 'comms' && (
+              <div>
+                <table className="report-table">
+                  <thead>
+                    <tr><th>Stakeholder</th><th>Interest</th><th>Key Message</th><th>Channel</th><th>Cadence</th><th>Owner</th></tr>
+                  </thead>
+                  <tbody>
+                    {results.commsPlan.map((c, i) => (
+                      <tr key={i}>
+                        <td><strong>{c.stakeholder}</strong></td>
+                        <td>{c.interest}</td>
+                        <td>{c.keyMessage}</td>
+                        <td>{c.channel}</td>
+                        <td>{c.cadence}</td>
+                        <td>{c.owner}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="doc-stamp">
+                  <span>STAKEHOLDER COMMS PLAN · DRAFT FOR REVIEW</span>
+                  <span>{timestamp}</span>
+                </div>
+              </div>
+            )}
+
+            {!loading && results && activeTab === 'checklist' && (
+              <div>
+                {[...new Set(results.changeChecklist.map(i => i.phase))].map(phase => (
+                  <div className="checklist-phase" key={phase}>
+                    <h4>{phase}</h4>
+                    {results.changeChecklist
+                      .map((item, idx) => ({ ...item, idx }))
+                      .filter(item => item.phase === phase)
+                      .map(item => (
+                        <div className={`checklist-item ${checkedItems[item.idx] ? 'done' : ''}`} key={item.idx}>
+                          <input
+                            type="checkbox"
+                            id={`check-${item.idx}`}
+                            checked={!!checkedItems[item.idx]}
+                            onChange={() => toggleChecked(item.idx)}
+                          />
+                          <label htmlFor={`check-${item.idx}`}>{item.item}</label>
+                          <span className="owner-tag">{item.owner}</span>
+                        </div>
+                      ))}
+                  </div>
+                ))}
+                <div className="doc-stamp">
+                  <span>CHANGE MANAGEMENT CHECKLIST · DRAFT FOR REVIEW</span>
                   <span>{timestamp}</span>
                 </div>
               </div>
